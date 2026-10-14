@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>silk: any site in, clean dataset out</title>
+<meta name="description" content="silk crawls a site politely, writes one JSONL record per page, chunks it for RAG and builds a local BM25 index you can ask questions. CLI, MCP server and dashboard. Zero dependencies.">
+<meta property="og:title" content="silk">
+<meta property="og:description" content="any site in, clean dataset out.">
+<meta property="og:image" content="https://raw.githubusercontent.com/OWNER/silk/main/assets/banner.png">
+<meta name="theme-color" content="#0A0A0C">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='%23B9A3F5'%3E%3Cpath d='M70.31 14.16 68.46 13.38 66.02 12.79 62.70 12.50 59.47 12.60 53.71 13.48 50.29 14.36 46.78 15.53 43.85 16.70 39.26 18.95 34.18 22.17 31.64 24.22 29.20 26.66 26.66 30.08 25.49 32.32 24.61 34.77 24.12 37.11 24.02 39.45 24.22 41.21 25.10 44.04 26.56 46.58 28.32 48.54 31.54 50.88 34.86 52.44 38.77 53.71 47.85 55.86 52.93 57.42 56.54 58.98 58.11 59.86 59.08 60.64 59.08 61.33 58.69 62.01 57.23 63.38 55.18 64.36 51.95 64.94 50.20 64.94 47.07 64.55 38.18 62.21 33.89 61.52 31.35 61.52 29.10 61.91 27.73 62.40 25.98 63.38 24.22 65.14 22.95 67.68 22.56 69.73 22.56 71.29 22.85 73.05 23.44 74.80 24.22 76.37 25.49 78.22 27.73 80.47 30.57 82.42 32.91 83.59 35.74 84.57 38.28 85.16 41.60 85.55 45.70 85.55 48.73 85.25 54.49 84.08 60.84 81.93 65.14 79.88 66.99 78.81 71.00 75.78 73.24 73.44 75.29 70.51 76.56 67.87 77.25 65.62 77.64 63.18 77.64 60.64 77.15 57.71 76.17 54.98 75.00 52.73 73.05 50.10 70.70 47.75 69.14 46.48 66.31 44.63 63.57 43.16 58.11 40.92 47.66 37.60 45.02 36.52 43.55 35.74 43.16 35.35 43.26 34.77 45.12 33.40 47.27 32.32 50.59 31.15 54.10 30.37 57.13 29.98 64.16 29.69 66.50 29.39 69.24 28.61 71.48 27.34 73.05 25.78 74.12 23.93 74.61 22.27 74.71 20.61 74.32 18.65 73.24 16.60 72.17 15.43Z'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+@font-face { font-family: "Mona Sans"; src: url(fonts/mona-sans.woff2) format("woff2"); font-weight: 200 900; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url(fonts/jbmono-400.woff2) format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url(fonts/jbmono-700.woff2) format("woff2"); font-weight: 700; font-display: swap; }
+:root {
+  --bg: #0A0A0C; --panel: #0F0F12; --raised: #151519; --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.14);
+  --text: #F2F2F3; --muted: #8B8B93; --dim: #6E6E76; --soft: #C6C6CC; --accent: #B9A3F5;
+  --sans: "Mona Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+main { overflow-x: hidden; overflow-x: clip; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+nav { display: flex; align-items: center; gap: 28px; height: 72px; border-bottom: 1px solid var(--line); }
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 21px; text-decoration: none; letter-spacing: -0.03em; }
+.logo img { width: 32px; height: 32px; display: block; }
+nav .links { margin-left: auto; display: flex; gap: 26px; font-size: 14.5px; color: var(--muted); }
+nav .links a { text-decoration: none; }
+nav .links a:hover { color: var(--text); }
+.hero { padding-top: 56px; padding-bottom: 80px; position: relative; }
+.hero::before { content: ""; position: absolute; left: -220px; top: -40px; width: 720px; height: 640px; background: radial-gradient(closest-side, rgba(185,163,245,.10), rgba(185,163,245,.03) 60%, transparent); pointer-events: none; }
+.hero > * { position: relative; }
+.hero-head { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: 48px; align-items: end; margin-bottom: 34px; }
+.hero-head .lede { margin: 0 0 6px; }
+.local { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.04fr); gap: 56px; align-items: center; }
+.local .lede { margin-top: 0; }
+.eyebrow { font: 13px var(--mono); color: var(--muted); margin: 0 0 20px; }
+h1 { font-size: 58px; line-height: 1.02; letter-spacing: -0.035em; margin: 0; font-weight: 700; }
+h1 span { color: var(--muted); }
+.lede { color: var(--soft); font-size: 18px; margin: 24px 0 30px; max-width: 500px; }
+.install { display: flex; align-items: center; border: 1px solid var(--line-2); border-radius: 10px; background: var(--panel); width: fit-content; max-width: 100%; overflow: hidden; }
+.install code { font: 15px var(--mono); padding: 13px 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.install code b { color: var(--accent); font-weight: 400; margin-right: 10px; }
+.copy { border: 0; border-left: 1px solid var(--line-2); background: var(--raised); color: var(--accent); font: 600 13px var(--sans); padding: 0 16px; align-self: stretch; cursor: pointer; }
+.copy:hover { background: #1B1B20; }
+.cta { display: flex; gap: 18px; align-items: center; margin-top: 22px; font-size: 14.5px; color: var(--muted); flex-wrap: wrap; }
+.cta a { text-decoration: none; border-bottom: 1px solid var(--line-2); padding-bottom: 1px; }
+.cta a:hover { color: var(--text); border-color: var(--muted); }
+.term { background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+.term .bar { height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 15px; border-bottom: 1px solid var(--line); background: var(--raised); }
+.term .bar i { width: 10px; height: 10px; border-radius: 50%; background: #2A2A30; }
+.term .bar span { margin-left: 8px; font: 12px var(--mono); color: var(--muted); }
+.term pre { margin: 0; padding: 18px 20px 20px; font: 13px/1.7 var(--mono); color: var(--soft); overflow-x: auto; }
+.c { color: var(--text); font-weight: 700; } .p { color: var(--accent); } .m { color: var(--dim); } .h { color: var(--text); } .a { color: var(--accent); font-weight: 700; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tool { background: var(--panel); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 30px 80px rgba(0,0,0,.5); overflow: hidden; }
+.tool-top { padding: 18px 18px 14px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(255,255,255,.015), transparent); }
+.tool-form { display: flex; gap: 10px; }
+.urlbox { flex: 1; min-width: 0; display: flex; align-items: center; background: var(--bg); border: 1px solid var(--line-2); border-radius: 10px; height: 52px; padding: 0 6px 0 16px; transition: border-color .15s, box-shadow .15s; }
+.urlbox:focus-within { border-color: rgba(185,163,245,.55); box-shadow: 0 0 0 3px rgba(185,163,245,.14); }
+.urlbox svg { flex: none; color: var(--dim); margin-right: 12px; }
+.urlbox input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--text); font: 15.5px var(--mono); height: 100%; }
+.urlbox input::placeholder { color: var(--dim); }
+.urlbox select { flex: none; background: var(--raised); color: var(--soft); border: 1px solid var(--line); border-radius: 7px; font: 13px var(--mono); height: 36px; padding: 0 8px; outline: none; cursor: pointer; }
+.go { flex: none; height: 52px; min-width: 128px; border: 1px solid var(--accent); background: var(--accent); color: #120D20; border-radius: 10px; font: 700 15.5px var(--sans); letter-spacing: -0.01em; padding: 0 22px; cursor: pointer; }
+.go:hover { background: #C9B8F8; border-color: #C9B8F8; }
+.go.stop { background: var(--raised); color: var(--text); border-color: var(--line-2); }
+.hint { display: flex; justify-content: space-between; gap: 8px 20px; flex-wrap: wrap; margin-top: 12px; font-size: 13.5px; color: var(--muted); }
+.hint button { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; border-bottom: 1px solid rgba(185,163,245,.35); }
+.hint button:hover { border-color: var(--accent); }
+.hint .rules { font: 12.5px var(--mono); color: var(--dim); }
+.statbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.st { padding: 14px 18px; border-right: 1px solid var(--line); min-width: 0; }
+.st:last-child { border-right: 0; }
+.st b { display: block; font: 700 24px/1.2 var(--mono); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st.key b { color: var(--accent); }
+.st span { font-size: 12.5px; color: var(--muted); }
+.idle .st b { color: var(--dim); }
+.status { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--line); min-height: 49px; }
+.pill { flex: none; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; padding: 3px 11px 3px 9px; border-radius: 99px; border: 1px solid var(--line-2); color: var(--muted); }
+.pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.running .pill { color: var(--text); }
+.running .pill i { background: var(--accent); box-shadow: 0 0 0 3px rgba(185,163,245,.16); animation: pulse 1.2s infinite; }
+.done .pill { color: var(--text); }
+.done .pill i { background: var(--text); }
+@keyframes pulse { 50% { opacity: .35; } }
+.meter { flex: none; width: 140px; height: 6px; background: var(--raised); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+.meter div { height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .35s ease; }
+.event { flex: 1; min-width: 0; font: 12.5px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event em { font-style: normal; color: var(--soft); }
+.panes { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); min-height: 388px; }
+.pane { padding: 18px; min-width: 0; }
+.pane + .pane { border-left: 1px solid var(--line); }
+.label { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.label small { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--dim); font-size: 12.5px; }
+.plist { max-height: 352px; overflow: auto; margin: 0 -6px; padding: 0 6px; scrollbar-width: thin; scrollbar-color: #2A2A30 transparent; }
+.pg { border-bottom: 1px solid var(--line); }
+.pg summary { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 9px 4px; cursor: pointer; list-style: none; border-radius: 6px; }
+.pg summary::-webkit-details-marker { display: none; }
+.pg summary:hover { background: var(--raised); }
+.pg .i { font: 12px var(--mono); color: var(--dim); }
+.pg .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 14.5px; }
+.pg .t small { font: 12px var(--mono); color: var(--dim); font-weight: 400; margin-left: 8px; }
+.pg .w { font: 12.5px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.pg pre { margin: 0 0 10px 40px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font: 12px/1.6 var(--mono); color: var(--soft); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
+.pg pre a { color: var(--accent); }
+.pg.new summary { animation: land .5s ease; }
+@keyframes land { from { background: rgba(185,163,245,.10); } to { background: transparent; } }
+.sk { height: 38px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 30px minmax(0, 1fr) 56px; gap: 10px; align-items: center; padding: 0 4px; }
+.sk i { display: block; height: 10px; border-radius: 4px; background: linear-gradient(90deg, #17171B 0, #222228 50%, #17171B 100%); background-size: 200% 100%; animation: shimmer 1.3s infinite linear; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.blank { color: var(--muted); font-size: 14px; padding: 6px 0; max-width: 420px; }
+.blank p { margin: 0 0 12px; }
+.blank ol { margin: 0; padding: 0 0 0 18px; color: var(--dim); font-size: 13.5px; }
+.blank ol li { margin-bottom: 4px; }
+.notice { border: 1px solid var(--line-2); border-radius: 10px; padding: 14px 16px; background: var(--bg); }
+.notice b { display: block; font-size: 15px; margin-bottom: 4px; }
+.notice span { color: var(--muted); font-size: 14px; }
+.askrow { display: flex; gap: 8px; }
+.askrow input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line-2); border-radius: 9px; height: 42px; padding: 0 12px; color: var(--text); font: 14.5px var(--sans); outline: none; }
+.askrow input:focus { border-color: rgba(185,163,245,.55); box-shadow: 0 0 0 3px rgba(185,163,245,.14); }
+.askrow input:disabled { opacity: .55; }
+.ghost { flex: none; height: 42px; border: 1px solid var(--line-2); background: var(--raised); color: var(--text); border-radius: 9px; font: 600 14px var(--sans); padding: 0 16px; cursor: pointer; }
+.ghost:hover:not(:disabled) { border-color: rgba(255,255,255,.24); }
+.ghost:disabled { opacity: .45; cursor: default; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; min-height: 28px; }
+.chips button { border: 1px solid var(--line); background: none; color: var(--muted); border-radius: 99px; font: 12.5px var(--sans); padding: 4px 10px; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips button:hover { color: var(--text); border-color: var(--line-2); }
+.answer { margin-top: 12px; padding: 13px 15px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); position: relative; }
+.answer::before { content: ""; position: absolute; left: -1px; top: 12px; bottom: 12px; width: 2px; border-radius: 2px; background: var(--accent); }
+.answer .k { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.answer p { margin: 0; font-size: 14.5px; color: var(--soft); }
+.answer sup { font: 11px var(--mono); color: var(--accent); }
+.srcs { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.srcs li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font-size: 13.5px; }
+.srcs .n { font: 12px var(--mono); color: var(--accent); }
+.srcs a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; color: var(--text); }
+.srcs a:hover { text-decoration: underline; text-decoration-color: var(--line-2); }
+.srcs a small { color: var(--muted); }
+.srcs .s { font: 12px var(--mono); color: var(--dim); }
+.dl { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.dl .ghost { height: 38px; font-size: 13.5px; }
+.dl .meta { width: 100%; font: 12px var(--mono); color: var(--dim); }
+.note { font-size: 12.5px; color: var(--dim); margin-top: 10px; }
+.reveal { display: none; }
+.has-index .reveal { display: block; }
+section { padding: 80px 0; border-top: 1px solid var(--line); }
+h2 { font-size: 36px; letter-spacing: -0.03em; line-height: 1.12; margin: 0 0 12px; }
+.sub { color: var(--muted); margin: 0 0 40px; max-width: 640px; }
+.features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.f { background: var(--bg); padding: 26px 26px 28px; }
+.f h3 { margin: 0 0 8px; font-size: 16.5px; letter-spacing: -0.015em; }
+.f p { margin: 0; color: var(--muted); font-size: 14.5px; }
+.f code, .faq code, .sub code { font: 13px var(--mono); color: var(--soft); background: var(--raised); border: 1px solid var(--line); padding: 1px 6px; border-radius: 5px; }
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.step { border: 1px solid var(--line); border-radius: 12px; padding: 20px; background: var(--panel); }
+.step .n { font: 12px var(--mono); color: var(--accent); }
+.step h3 { margin: 6px 0 6px; font-size: 16px; }
+.step p { margin: 0; color: var(--muted); font-size: 14px; }
+.step pre { margin: 12px 0 0; font: 12px/1.6 var(--mono); color: var(--soft); white-space: pre-wrap; overflow-wrap: break-word; }
+.mcp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.code { background: var(--panel); border: 1px solid var(--line-2); border-radius: 12px; padding: 18px 20px; font: 13px/1.7 var(--mono); color: var(--soft); overflow-x: auto; margin: 0; }
+.tools { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.tools li { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--panel); }
+.tools b { font: 700 14px var(--mono); }
+.tools span { display: block; color: var(--muted); font-size: 14px; margin-top: 2px; }
+.shot { border: 1px solid var(--line-2); border-radius: 14px; overflow: hidden; display: block; background: var(--panel); }
+.shot img { display: block; width: 100%; height: auto; }
+.faq { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 40px; }
+.faq h3 { font-size: 16px; margin: 0 0 6px; }
+.faq p { margin: 0 0 18px; color: var(--muted); font-size: 14.5px; }
+footer { border-top: 1px solid var(--line); padding: 34px 0 48px; color: var(--dim); font-size: 14px; }
+footer .wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+footer a { text-decoration: none; color: var(--muted); }
+footer a:hover { color: var(--text); }
+@media (max-width: 920px) {
+  .local, .mcp, .hero-head { grid-template-columns: minmax(0, 1fr); }
+  .hero-head { gap: 18px; }
+  .panes { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .pane + .pane { border-left: 0; border-top: 1px solid var(--line); }
+  .features { grid-template-columns: minmax(0, 1fr); }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .faq { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 48px; }
+  nav .links a:not(.gh) { display: none; }
+}
+@media (max-width: 560px) {
+  .wrap { padding-left: 16px; padding-right: 16px; }
+  .hero { padding-top: 36px; padding-bottom: 56px; }
+  .hero-head { margin-bottom: 24px; }
+  .tool { border-radius: 14px; }
+  .tool-top { padding: 14px 14px 12px; }
+  .tool-form { flex-wrap: wrap; }
+  .urlbox { flex-basis: 100%; height: 50px; padding-left: 13px; }
+  .urlbox svg { display: none; }
+  .urlbox input { font-size: 15px; }
+  .go { flex: 1; height: 48px; }
+  .hint .rules { display: none; }
+  .statbar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .st { padding: 11px 14px; }
+  .st:nth-child(3) { border-right: 0; }
+  .st:nth-child(-n+3) { border-bottom: 1px solid var(--line); }
+  .st b { font-size: 19px; }
+  .status { padding: 10px 14px; gap: 10px; }
+  .meter { width: 64px; }
+  .event { white-space: normal; line-height: 1.45; }
+  .pane { padding: 16px 14px; }
+  .plist { max-height: 300px; }
+  .pg pre { margin-left: 0; }
+  .steps { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 40px; }
+}
+</style>
+</head>
+<body>
+<header class="wrap">
+  <nav>
+    <a class="logo" href="#"><img alt="" src="data:image/png;base64,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">silk</a>
+    <div class="links">
+      <a href="#tool">Try it</a>
+      <a href="#features">Features</a>
+      <a href="#cli">CLI</a>
+      <a href="#mcp">MCP</a>
+      <a href="#faq">FAQ</a>
+      <a class="gh" href="https://github.com/OWNER/silk">GitHub</a>
+    </div>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div class="hero-head">
+      <div>
+        <p class="eyebrow">v1.1.0 &middot; MIT &middot; 0 dependencies</p>
+        <h1>any site in,<br><span>clean dataset out.</span></h1>
+      </div>
+      <p class="lede">Crawl any site in your browser. silk reads robots.txt, fetches up to 25 pages, strips the nav and footers, chunks the text for RAG and lets you ask it questions. Take the JSONL with you.</p>
+    </div>
+
+    <div class="tool idle" id="tool">
+      <div class="tool-top">
+        <form class="tool-form" id="crawl-form" novalidate>
+          <label class="sr" for="url">Site address</label>
+          <div class="urlbox">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>
+            <input id="url" name="url" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="docs.example.com" required>
+            <label class="sr" for="max">Pages</label>
+            <select id="max" name="max"><option value="5">5 pages</option><option value="10" selected>10 pages</option><option value="25">25 pages</option></select>
+          </div>
+          <button class="go" id="go" type="submit">Crawl</button>
+        </form>
+        <div class="hint">
+          <span>try with an example: <button type="button" id="example" data-url="https://requests.readthedocs.io/en/latest/" data-max="10">requests docs</button></span>
+          <span class="rules">robots.txt respected &middot; HTML only, no JavaScript &middot; results not stored</span>
+        </div>
+      </div>
+
+      <div class="statbar" aria-live="off">
+        <div class="st key"><b id="s-pages">0</b><span>pages</span></div>
+        <div class="st"><b id="s-words">0</b><span>words</span></div>
+        <div class="st"><b id="s-tokens">0</b><span>est. tokens</span></div>
+        <div class="st"><b id="s-chunks">0</b><span>RAG chunks</span></div>
+        <div class="st"><b id="s-time">0.0s</b><span>time</span></div>
+      </div>
+      <div class="status">
+        <span class="pill"><i></i><span id="state">ready</span></span>
+        <div class="meter" aria-hidden="true"><div id="meter"></div></div>
+        <div class="event" id="event" aria-live="polite">Paste a site address and press Crawl.</div>
+      </div>
+
+      <div class="panes">
+        <div class="pane">
+          <p class="label">Pages <small id="pages-note">click a page for its clean text</small></p>
+          <div class="plist" id="plist">
+            <div class="blank" id="blank">
+              <p>What you get, straight from silk's own crawler:</p>
+              <ol>
+                <li>One clean record per page: title, headings, markdown-style text.</li>
+                <li>Heading-aware chunks of up to 512 tokens, ready for RAG.</li>
+                <li>A BM25 index in your browser to ask questions, with sources.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+        <div class="pane">
+          <p class="label">Ask this site <small id="index-note">BM25, runs in your browser</small></p>
+          <form class="askrow" id="ask-form">
+            <label class="sr" for="q">Question</label>
+            <input id="q" type="text" autocomplete="off" placeholder="Crawl a site first" disabled>
+            <button class="ghost" id="ask" type="submit" disabled>Ask</button>
+          </form>
+          <div class="chips" id="chips"></div>
+          <div id="answer"></div>
+          <div class="dl">
+            <button class="ghost" id="dl-pages" type="button" disabled>Download JSONL</button>
+            <button class="ghost" id="dl-chunks" type="button" disabled>Download RAG chunks</button>
+            <div class="meta" id="dl-meta">pages.jsonl and chunks.jsonl, same format as the CLI</div>
+          </div>
+          <p class="note">Token counts are estimates (words x 1.33). Answers are extracted sentences, not generated.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="cli">
+    <div class="wrap local">
+      <div>
+        <h2>the same pipeline on your machine</h2>
+        <p class="lede">The site caps a crawl at 25 pages. On your machine there is no cap: silk crawls at the pace the site asks for and writes one JSONL line per page. Then chunk it, index it and ask it questions from the terminal, a local dashboard or your agent over MCP.</p>
+        <div class="install"><code id="cmd"><b>$</b>npx silk-crawl docs.example.com</code><button class="copy" id="copy" type="button">Copy</button></div>
+        <div class="cta"><a href="https://github.com/OWNER/silk#quick-start">Quick start</a><a href="https://github.com/OWNER/silk#cli-reference">CLI reference</a><a href="https://github.com/OWNER/silk">Source on GitHub</a></div>
+      </div>
+    <div class="term" aria-label="Example terminal session against the local fixture site">
+      <div class="bar"><i></i><i></i><i></i><span>example output, fixture site (abridged)</span></div>
+<pre><span class="p">$</span> <span class="c">silk http://127.0.0.1:4173 --sitemap auto --delay 0</span>
+<span class="m">  sitemap  /sitemap_index.xml  (5 URLs queued)</span>
+  saved    /  (38 words)
+<span class="m">  skip     /private/keys  (robots)</span>
+  saved    /docs/  (46 words)
+<span class="m">  ...</span>
+<span class="h">Done in 0.15s</span>  pages <span class="a">12</span>, words 252, est. tokens 334
+
+<span class="p">$</span> <span class="c">silk chunk docs.jsonl &amp;&amp; silk index chunks.jsonl</span>
+Chunked 12 pages into 17 chunks (avg 20 tokens, max 51)
+Indexed 17 chunks, 120 terms (avg 14.5 terms per chunk)
+
+<span class="p">$</span> <span class="c">silk ask "how do I disable retries?" --k 2</span>
+<span class="h">Answer (extractive)</span>
+  Pass retries: 0 to fail fast. Network calls made by
+  the loader are retried automatically when they fail
+  with a timeout or a 5xx status.
+<span class="h">Sources</span>
+  [1]  <span class="a">5.92</span>  Retries &gt; Disable retries
+  [2]  2.75  Retries</pre>
+    </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>the whole pipeline in one package</h2>
+      <p class="sub">Every stage writes a plain file you can open: JSONL in, JSONL out, one JSON index. Node 18 or newer is all you need.</p>
+      <div class="features">
+        <div class="f"><h3>Polite by default</h3><p>robots.txt per RFC 9309 with Crawl-delay, per-host spacing, <code>noindex</code>, <code>nofollow</code> and canonical links. No flags needed.</p></div>
+        <div class="f"><h3>Sitemap seeding</h3><p><code>--sitemap auto</code> reads robots.txt <code>Sitemap:</code> lines or <code>/sitemap.xml</code>, follows sitemap indexes and gzip files.</p></div>
+        <div class="f"><h3>Resume</h3><p><code>--resume</code> reads the JSONL you already have, skips every URL and text hash in it and appends the rest. Kill it, run it again.</p></div>
+        <div class="f"><h3>Clean text</h3><p>Nav, footers, scripts and asides get dropped. Headings, lists and fenced code blocks stay as markdown.</p></div>
+        <div class="f"><h3>Chunks for RAG</h3><p>512 token chunks by default, split on headings first, then paragraphs, with 64 tokens of overlap. Each chunk keeps its URL and heading path.</p></div>
+        <div class="f"><h3>Local search</h3><p>A BM25 index in one JSON file plus an extractive answer. No model, no network. Add <code>--llm</code> for a cited answer from Anthropic or OpenAI.</p></div>
+        <div class="f"><h3>Exports</h3><p>Clean JSONL, a folder of Markdown files with front matter, or a Hugging Face dataset folder with a generated card.</p></div>
+        <div class="f"><h3>MCP server</h3><p><code>silk mcp</code> gives your agent 4 tools: crawl, chunk, search and stats, over stdio.</p></div>
+        <div class="f"><h3>Dashboard</h3><p><code>silk ui</code> starts a crawl from the browser, shows pages as they land and answers questions over the index.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pipeline">
+    <div class="wrap">
+      <h2>crawl, chunk, index, ask</h2>
+      <p class="sub">Four commands, four files. Run them one by one, or let the dashboard and the MCP server chain them for you.</p>
+      <div class="steps">
+        <div class="step"><span class="n">01</span><h3>Crawl</h3><p>One JSONL record per page.</p><pre>silk docs.example.com --sitemap auto</pre></div>
+        <div class="step"><span class="n">02</span><h3>Chunk</h3><p>Heading-aware chunks with overlap.</p><pre>silk chunk dataset.jsonl --size 512 --overlap 64</pre></div>
+        <div class="step"><span class="n">03</span><h3>Index</h3><p>BM25 inverted index in one file.</p><pre>silk index chunks.jsonl</pre></div>
+        <div class="step"><span class="n">04</span><h3>Ask</h3><p>Ranked passages and a short answer.</p><pre>silk ask "how do I configure retries?"</pre></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="mcp">
+    <div class="wrap mcp">
+      <div>
+        <h2>give your agent a crawler</h2>
+        <p class="sub">Add silk to Claude Desktop, Claude Code or Cursor. JSON-RPC over stdio, crawls capped at 200 pages per call.</p>
+<pre class="code">{
+  "mcpServers": {
+    "silk": {
+      "command": "npx",
+      "args": ["-y", "silk-crawl", "mcp"]
+    }
+  }
+}</pre>
+      </div>
+      <ul class="tools">
+        <li><b>crawl_site</b><span>Crawl a site politely and return the page text, or write it to a JSONL file.</span></li>
+        <li><b>chunk_dataset</b><span>Cut a dataset into retrieval chunks and optionally build the BM25 index.</span></li>
+        <li><b>search_index</b><span>Ranked passages with URL and heading path, plus a short extractive answer.</span></li>
+        <li><b>dataset_stats</b><span>Pages, words, tokens, top domains, average length and duplicate rate.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>a dashboard for the loop</h2>
+      <p class="sub"><code>silk ui</code> serves one local page on 127.0.0.1. Start a crawl, watch it fill, ask the index. Example data from the fixture site.</p>
+      <a class="shot" href="https://github.com/OWNER/silk#dashboard"><img src="https://raw.githubusercontent.com/OWNER/silk/main/assets/dashboard.png" alt="silk dashboard showing crawl progress, an extractive answer and the page table" width="1280" height="1200" loading="lazy"></a>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <h2>faq</h2>
+      <div class="faq">
+        <div><h3>What happens when I crawl on this site?</h3><p>A serverless function runs silk's own crawler on the address you typed: robots.txt first, then up to 25 pages from the same site within 45 seconds. Pages stream back to your browser. Nothing is stored, and the search runs in your tab.</p></div>
+        <div><h3>Why did a site come back empty?</h3><p>Some sites block cloud servers, some build their text with JavaScript, some ask crawlers to stay out. The page tells you which. For anything bigger, run <code>npx silk-crawl</code> on your machine.</p></div>
+        <div><h3>Does it run JavaScript?</h3><p>No. silk reads the HTML the server sends. Docs sites, blogs and whitepapers usually render on the server. Single-page apps that build their text in the browser come out thin.</p></div>
+        <div><h3>How are tokens counted?</h3><p>Estimated as words times 1.33. Close for English prose with common tokenizers, and it keeps silk at zero dependencies. Chunk sizes use the same estimate.</p></div>
+        <div><h3>Is the search semantic?</h3><p>No, it is lexical: BM25 with stopwords and light stemming. No model, no GPU, no network. For semantic retrieval, feed <code>chunks.jsonl</code> to your embedding pipeline.</p></div>
+        <div><h3>What leaves my machine with --llm?</h3><p>The question and the top passages, sent to the provider whose key is set. Without <code>--llm</code> the only traffic is the crawl itself.</p></div>
+        <div><h3>Can I crawl any site?</h3><p>silk follows robots.txt and rate limits, but it can't read terms of service. Check a site's terms and the license of its content before you crawl it or publish a dataset.</p></div>
+        <div><h3>What is $SILK?</h3><p>The project's community token. The tool is MIT licensed and works the same with or without it. Nothing in silk needs a wallet. Not financial advice.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>silk, MIT licensed.</span>
+    <a href="https://github.com/OWNER/silk">github.com/OWNER/silk</a>
+    <a href="https://github.com/OWNER/silk/blob/main/CHANGELOG.md">Changelog</a>
+    <a href="https://github.com/OWNER/silk/issues">Issues</a>
+  </div>
+</footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>

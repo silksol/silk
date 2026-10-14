@@ -1,0 +1,52 @@
+{
+  "name": "silk-crawl",
+  "version": "1.1.0",
+  "description": "any site in, clean dataset out. Crawls politely, writes JSONL, chunks it for RAG and builds a local BM25 index you can ask questions. CLI, MCP server and dashboard, zero dependencies.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "bin": {
+    "silk": "bin/silk.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "crawler",
+    "scraper",
+    "sitemap",
+    "dataset",
+    "llm",
+    "rag",
+    "chunking",
+    "bm25",
+    "search",
+    "mcp",
+    "model-context-protocol",
+    "jsonl",
+    "robots.txt",
+    "huggingface",
+    "cli"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWNER/silk.git"
+  },
+  "homepage": "https://github.com/OWNER/silk#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/silk/issues"
+  }
+}

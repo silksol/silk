@@ -1,0 +1,10 @@
+{
+  "framework": null,
+  "installCommand": "echo skip",
+  "buildCommand": "echo skip",
+  "outputDirectory": "docs",
+  "functions": {
+    "api/crawl.js": { "maxDuration": 60 }
+  },
+  "github": { "silent": true }
+}
